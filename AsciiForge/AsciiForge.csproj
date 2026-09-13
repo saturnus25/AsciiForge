@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>AsciiForge</AssemblyName>
+    <RootNamespace>AsciiForge</RootNamespace>
+    <Version>5.1.1</Version>
+    <AssemblyVersion>5.1.1.0</AssemblyVersion>
+    <FileVersion>5.1.1.0</FileVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Data\*.json" />
+    <EmbeddedResource Include="Shaders\*.glsl" />
+  </ItemGroup>
+</Project>
