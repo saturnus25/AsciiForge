@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $project = Join-Path $root 'AsciiForge\AsciiForge.csproj'
-$version = '5.1.1'
+$version = '5.2.0'
 Write-Host "Building AsciiForge $version C# GPU Edition..." -ForegroundColor Cyan
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {

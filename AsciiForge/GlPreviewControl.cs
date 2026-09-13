@@ -41,6 +41,7 @@ internal sealed class GlPreviewControl : Control
     private System.Threading.CancellationTokenSource? _schedulerCts;
     private System.Threading.Thread? _schedulerThread;
     private int _paintQueued;
+    private static readonly Dictionary<(uint Program, string Name), int> UniformLocationCache = new();
     private volatile bool _loaded;
     private string _gpuInfo = "OpenGL no inicializado";
     private EffectSettings _settings = new();
@@ -54,8 +55,11 @@ internal sealed class GlPreviewControl : Control
     private double _temporalTime;
     private double _lastTimelineTime;
     private bool _previewClockInitialized;
+    private bool _sdfOrbiting;
+    private Point _sdfOrbitLast;
 
     public event Action<double, double, string>? FrameStats;
+    public event Action<double, double, double>? SdfCameraChanged;
     [Browsable(false)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public EffectSettings Settings
@@ -116,6 +120,7 @@ internal sealed class GlPreviewControl : Control
             if (_intensityTex != 0) NativeGl.DeleteTextures(1, ref _intensityTex);
             NativeGl.wglMakeCurrent(IntPtr.Zero, IntPtr.Zero);
             NativeGl.wglDeleteContext(_rc); _rc = IntPtr.Zero;
+            UniformLocationCache.Clear();
         }
         if (_dc != IntPtr.Zero) { NativeGl.ReleaseDC(Handle, _dc); _dc = IntPtr.Zero; }
         base.OnHandleDestroyed(e);
@@ -125,6 +130,60 @@ internal sealed class GlPreviewControl : Control
     {
         if (m.Msg == WM_ERASEBKGND) { m.Result = new IntPtr(1); return; }
         base.WndProc(ref m);
+    }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        if (e.Button == MouseButtons.Left && _settings.Effect.Equals("SDF Lab", StringComparison.OrdinalIgnoreCase))
+        {
+            _sdfOrbiting = true;
+            _sdfOrbitLast = e.Location;
+            Capture = true;
+            Cursor = Cursors.SizeAll;
+        }
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (!_sdfOrbiting) return;
+        int dx = e.X - _sdfOrbitLast.X, dy = e.Y - _sdfOrbitLast.Y;
+        _sdfOrbitLast = e.Location;
+        double yaw = _settings.Get("sdf_yaw") + dx * .45;
+        while (yaw > 180) yaw -= 360;
+        while (yaw < -180) yaw += 360;
+        double pitch = Math.Clamp(_settings.Get("sdf_pitch") - dy * .35, -75, 75);
+        _settings.Set("sdf_yaw", yaw);
+        _settings.Set("sdf_pitch", pitch);
+        SdfCameraChanged?.Invoke(yaw, pitch, _settings.Get("sdf_depth"));
+        Invalidate();
+    }
+
+    protected override void OnMouseUp(MouseEventArgs e)
+    {
+        base.OnMouseUp(e);
+        if (e.Button == MouseButtons.Left && _sdfOrbiting)
+        {
+            _sdfOrbiting = false;
+            Capture = false;
+            Cursor = Cursors.Default;
+        }
+    }
+
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        if (_settings.Effect.Equals("SDF Lab", StringComparison.OrdinalIgnoreCase))
+        {
+            double copies = Math.Clamp(Math.Round(_settings.Get("sdf_repeat")), 0, 4);
+            double safeMin = Math.Max(1.8, copies * Math.Max(1.15, _settings.Get("sdf_spacing")) + 1.15);
+            double depth = Math.Clamp(_settings.Get("sdf_depth") - Math.Sign(e.Delta) * .35, safeMin, 24.0);
+            _settings.Set("sdf_depth", depth);
+            SdfCameraChanged?.Invoke(_settings.Get("sdf_yaw"), _settings.Get("sdf_pitch"), depth);
+            Invalidate();
+            return;
+        }
+        base.OnMouseWheel(e);
     }
 
     private void StartScheduler()
@@ -231,6 +290,7 @@ internal sealed class GlPreviewControl : Control
         }
         _rc = temp;
         NativeGl.Load();
+        UniformLocationCache.Clear();
 
         string vert = ReadResource("fullscreen.vert.glsl");
         string effects = ReadResource("effects.glsl");
@@ -282,13 +342,13 @@ internal sealed class GlPreviewControl : Control
             NativeGl.Viewport(0, 0, Math.Max(1, Width), Math.Max(1, Height));
             NativeGl.glClearColor(0, 0, 0, 1); NativeGl.glClear(NativeGl.GL_COLOR_BUFFER_BIT);
             NativeGl.UseProgram(_previewProgram);
-            NativeGl.Uniform2i(NativeGl.GetUniformLocation(_previewProgram, "u_grid"), Math.Max(2,_settings.Width), Math.Max(2,_settings.Height));
+            NativeGl.Uniform2i(UniformLocation(_previewProgram, "u_grid"), Math.Max(2,_settings.Width), Math.Max(2,_settings.Height));
             U2(_previewProgram, "u_view", Width, Height);
             U1(_previewProgram, "u_gamma", _settings.F("gamma"));
             Ui(_previewProgram, "u_invert", _settings.Invert ? 1 : 0);
             Ui(_previewProgram, "u_color_enabled", _settings.ColorEnabled ? 1 : 0);
             Ui(_previewProgram, "u_glyph_count", Math.Max(1, _settings.Charset.EnumerateRunes().Count()));
-            NativeGl.Uniform2i(NativeGl.GetUniformLocation(_previewProgram, "u_atlas_grid"), _atlasCols, _atlasRows);
+            NativeGl.Uniform2i(UniformLocation(_previewProgram, "u_atlas_grid"), _atlasCols, _atlasRows);
             SetPaletteUniforms(_previewProgram, _settings.PaletteStops);
             NativeGl.ActiveTexture(NativeGl.GL_TEXTURE0); NativeGl.BindTexture(NativeGl.GL_TEXTURE_2D, _atlas); Ui(_previewProgram, "u_atlas", 0);
             NativeGl.ActiveTexture(NativeGl.GL_TEXTURE0+1); NativeGl.BindTexture(NativeGl.GL_TEXTURE_2D, _intensityTex); Ui(_previewProgram, "u_intensity", 1);
@@ -357,9 +417,9 @@ internal sealed class GlPreviewControl : Control
             NativeGl.BindFramebuffer(NativeGl.GL_FRAMEBUFFER, 0);
             NativeGl.Viewport(0,0,Math.Max(1,Width),Math.Max(1,Height));
             NativeGl.UseProgram(_previewProgram);
-            NativeGl.Uniform2i(NativeGl.GetUniformLocation(_previewProgram,"u_grid"),Math.Max(2,_settings.Width),Math.Max(2,_settings.Height));
+            NativeGl.Uniform2i(UniformLocation(_previewProgram,"u_grid"),Math.Max(2,_settings.Width),Math.Max(2,_settings.Height));
             U2(_previewProgram,"u_view",Math.Max(1,Width),Math.Max(1,Height)); U1(_previewProgram,"u_gamma",_settings.F("gamma")); Ui(_previewProgram,"u_invert",_settings.Invert?1:0); Ui(_previewProgram,"u_color_enabled",_settings.ColorEnabled?1:0);
-            Ui(_previewProgram,"u_glyph_count",Math.Max(1,_settings.Charset.EnumerateRunes().Count())); NativeGl.Uniform2i(NativeGl.GetUniformLocation(_previewProgram,"u_atlas_grid"),_atlasCols,_atlasRows); SetPaletteUniforms(_previewProgram,_settings.PaletteStops);
+            Ui(_previewProgram,"u_glyph_count",Math.Max(1,_settings.Charset.EnumerateRunes().Count())); NativeGl.Uniform2i(UniformLocation(_previewProgram,"u_atlas_grid"),_atlasCols,_atlasRows); SetPaletteUniforms(_previewProgram,_settings.PaletteStops);
             NativeGl.ActiveTexture(NativeGl.GL_TEXTURE0);NativeGl.BindTexture(NativeGl.GL_TEXTURE_2D,_atlas);Ui(_previewProgram,"u_atlas",0);NativeGl.ActiveTexture(NativeGl.GL_TEXTURE0+1);NativeGl.BindTexture(NativeGl.GL_TEXTURE_2D,_intensityTex);Ui(_previewProgram,"u_intensity",1);
             NativeGl.DrawArrays(NativeGl.GL_TRIANGLES,0,3);
         }
@@ -457,28 +517,20 @@ internal sealed class GlPreviewControl : Control
         _atlasCols = cols; _atlasRows = rows; _atlasRamp = ramp;
     }
 
-    private static readonly Dictionary<string, int> EffectIds = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Plasma"]=1,["Mandelbrot Zoom"]=2,["Julia"]=3,["Burning Ship"]=4,["Value Noise"]=5,["FBM Noise"]=6,["Tunnel"]=7,["Starfield"]=8,
-        ["Interference"]=9,["Metaballs"]=10,["Kaleidoscope"]=11,["Ripples"]=12,["Fire"]=13,["Matrix Rain"]=14,["XOR Pattern"]=15,["Moire"]=16,
-        ["Fireworks"]=17,["Radio Waves"]=18,["Rain Drops"]=19,["Rotating Galaxy"]=20,["Spinning Donut"]=21,["Spinning Shapes"]=22,["Horizon"]=23,["Bouncing Balls"]=24,["Cellular Automaton"]=25,["Wave Field"]=26,["Ocean Waves"]=27,["Ripple Tank"]=28,["Oscilloscope"]=29,["Water Caustics"]=30,["Aurora"]=31,["3D Shapes"]=32,["3D Terrain"]=33,["SDF Lab"]=34,["Flow Field"]=35,["Lightning"]=36,["Black Hole"]=37,["Strange Attractor"]=38,["Voronoi Cells"]=39,["Snowstorm"]=40,["DNA Helix"]=41,["Warp Grid 3D"]=42
-    };
-
-    private static readonly Dictionary<string, int> ShapeIds = new(StringComparer.OrdinalIgnoreCase) { ["Square"]=0,["Diamond"]=1,["Star"]=2,["Hex"]=3,["Cross"]=4 };
-
     private static void SetCommonUniforms(uint p, EffectSettings s, float animationTime, float temporalTime)
     {
-        Ui(p,"u_effect",EffectIds.GetValueOrDefault(s.Effect,1)); Ui(p,"u_seed",s.Seed); NativeGl.Uniform2i(NativeGl.GetUniformLocation(p,"u_grid"),Math.Max(2,s.Width),Math.Max(2,s.Height));
+        Ui(p, "u_effect", EffectRegistry.EffectId(s.Effect)); Ui(p,"u_seed",s.Seed); NativeGl.Uniform2i(UniformLocation(p,"u_grid"),Math.Max(2,s.Width),Math.Max(2,s.Height));
         U1(p,"u_time",animationTime); U1(p,"u_temporal_time",temporalTime); U1(p,"u_scale",s.F("scale"));U1(p,"u_amp",s.F("osc_amp"));U1(p,"u_fx",s.F("freq_x"));U1(p,"u_fy",s.F("freq_y"));U1(p,"u_fd",s.F("freq_diag"));U1(p,"u_fr",s.F("freq_radial"));U1(p,"u_tf",s.F("time_freq"));U1(p,"u_phase",s.F("phase_deg"));U1(p,"u_turb",s.F("turbulence"));U1(p,"u_warp",s.F("warp"));U1(p,"u_dx",s.F("drift_x"));U1(p,"u_dy",s.F("drift_y"));U1(p,"u_pulse",s.F("pulse"));U1(p,"u_density",s.F("density"));U1(p,"u_aspect",s.F("aspect"));U1(p,"u_iterations",s.F("iterations"));
-        string[] keys={"fire_height","fire_width","fire_wind","fire_particles","fire_particle_size","fire_particle_lift","ball_count","ball_radius","ball_gravity","ball_bounce","ball_speed","ball_trails","firework_count","firework_size","firework_sparks","firework_gravity","firework_decay","rain_count","rain_ring_size","rain_ring_width","rain_decay","galaxy_arms","galaxy_core","galaxy_twist","galaxy_halo","donut_major","donut_minor","donut_spin_x","donut_spin_y","donut_detail","star_amount","star_size","star_depth","matrix_trail","matrix_spacing","matrix_head","tunnel_rings","tunnel_twist","tunnel_depth","horizon_height","horizon_fov","horizon_wave","radio_thickness","radio_decay","radio_expand","ca_rule","ca_step_rate","ca_history","ca_seed_density","ca_alive","ca_scroll","wave_count","wave_height","wave_length","wave_direction","wave_spread","wave_sharpness","ocean_height","ocean_length","ocean_layers","ocean_direction","ocean_choppiness","ocean_foam","tank_sources","tank_frequency","tank_speed","tank_damping","tank_motion","tank_interference","scope_waveform","scope_frequency","scope_amplitude","scope_thickness","scope_dual","scope_phase","caustic_scale","caustic_distortion","caustic_speed","caustic_sharpness","caustic_layers","aurora_bands","aurora_width","aurora_flow","aurora_curl","aurora_shimmer","aurora_height","shape3d_type","shape3d_spin_x","shape3d_spin_y","shape3d_spin_z","shape3d_camera","shape3d_fov","shape3d_light","shape3d_mode","terrain_height","terrain_detail","terrain_speed","terrain_camera","terrain_water","terrain_grid","sdf_shape","sdf_repeat","sdf_twist","sdf_smooth","sdf_spin","sdf_depth","flow_particles","flow_scale","flow_strength","flow_trails","flow_curl","flow_speed","lightning_branches","lightning_width","lightning_jitter","lightning_forks","lightning_flash","lightning_speed","blackhole_size","blackhole_disk","blackhole_spin","blackhole_lens","blackhole_jets","blackhole_stars","attractor_type","attractor_points","attractor_zoom","attractor_rotation","attractor_trail","attractor_glow","voronoi_cells","voronoi_speed","voronoi_edges","voronoi_fill","voronoi_warp","voronoi_pulse","snow_amount","snow_size","snow_wind","snow_depth","snow_gust","snow_twinkle","dna_turns","dna_radius","dna_speed","dna_rungs","dna_tilt","dna_depth","warpgrid_density","warpgrid_depth","warpgrid_twist","warpgrid_wave","warpgrid_speed","warpgrid_horizon"};
-        string[] uniforms={"u_fire_h","u_fire_w","u_fire_wind","u_fire_particles","u_fire_psize","u_fire_lift","u_ball_count","u_ball_radius","u_ball_gravity","u_ball_bounce","u_ball_speed","u_ball_trails","u_firework_count","u_firework_size","u_firework_sparks","u_firework_gravity","u_firework_decay","u_rain_count","u_rain_ring_size","u_rain_ring_width","u_rain_decay","u_galaxy_arms","u_galaxy_core","u_galaxy_twist","u_galaxy_halo","u_donut_major","u_donut_minor","u_donut_spin_x","u_donut_spin_y","u_donut_detail","u_star_amount","u_star_size","u_star_depth","u_matrix_trail","u_matrix_spacing","u_matrix_head","u_tunnel_rings","u_tunnel_twist","u_tunnel_depth","u_horizon_height","u_horizon_fov","u_horizon_wave","u_radio_thickness","u_radio_decay","u_radio_expand","u_ca_rule","u_ca_step_rate","u_ca_history","u_ca_seed_density","u_ca_alive","u_ca_scroll","u_wave_count","u_wave_height","u_wave_length","u_wave_direction","u_wave_spread","u_wave_sharpness","u_ocean_height","u_ocean_length","u_ocean_layers","u_ocean_direction","u_ocean_choppiness","u_ocean_foam","u_tank_sources","u_tank_frequency","u_tank_speed","u_tank_damping","u_tank_motion","u_tank_interference","u_scope_waveform","u_scope_frequency","u_scope_amplitude","u_scope_thickness","u_scope_dual","u_scope_phase","u_caustic_scale","u_caustic_distortion","u_caustic_speed","u_caustic_sharpness","u_caustic_layers","u_aurora_bands","u_aurora_width","u_aurora_flow","u_aurora_curl","u_aurora_shimmer","u_aurora_height","u_shape3d_type","u_shape3d_spin_x","u_shape3d_spin_y","u_shape3d_spin_z","u_shape3d_camera","u_shape3d_fov","u_shape3d_light","u_shape3d_mode","u_terrain_height","u_terrain_detail","u_terrain_speed","u_terrain_camera","u_terrain_water","u_terrain_grid","u_sdf_shape","u_sdf_repeat","u_sdf_twist","u_sdf_smooth","u_sdf_spin","u_sdf_depth","u_flow_particles","u_flow_scale","u_flow_strength","u_flow_trails","u_flow_curl","u_flow_speed","u_lightning_branches","u_lightning_width","u_lightning_jitter","u_lightning_forks","u_lightning_flash","u_lightning_speed","u_blackhole_size","u_blackhole_disk","u_blackhole_spin","u_blackhole_lens","u_blackhole_jets","u_blackhole_stars","u_attractor_type","u_attractor_points","u_attractor_zoom","u_attractor_rotation","u_attractor_trail","u_attractor_glow","u_voronoi_cells","u_voronoi_speed","u_voronoi_edges","u_voronoi_fill","u_voronoi_warp","u_voronoi_pulse","u_snow_amount","u_snow_size","u_snow_wind","u_snow_depth","u_snow_gust","u_snow_twinkle","u_dna_turns","u_dna_radius","u_dna_speed","u_dna_rungs","u_dna_tilt","u_dna_depth","u_warpgrid_density","u_warpgrid_depth","u_warpgrid_twist","u_warpgrid_wave","u_warpgrid_speed","u_warpgrid_horizon"};
-        for(int i=0;i<keys.Length;i++)U1(p,uniforms[i],s.F(keys[i])); Ui(p,"u_shape_mode",ShapeIds.GetValueOrDefault(s.ShapeMode,0));
+        foreach (var binding in ShaderUniformBindings.EffectSpecific)
+            U1(p, binding.UniformName, s.F(binding.SettingKey));
+
+        Ui(p, "u_shape_mode", EffectRegistry.ShapeId(s.ShapeMode));
     }
 
     private static void SetPaletteUniforms(uint p, List<string> stops)
     {
         var list = stops.Count >= 2 ? stops.Take(8).ToList() : new List<string>{"#cccccc","#ffffff"}; Ui(p,"u_palette_count",list.Count);
-        for(int i=0;i<8;i++) { var c=ParseColor(list[Math.Min(i,list.Count-1)]); int loc=NativeGl.GetUniformLocation(p,$"u_palette{i}"); if(loc>=0) NativeGl.Uniform3f(loc,c.R/255f,c.G/255f,c.B/255f); }
+        for(int i=0;i<8;i++) { var c=ParseColor(list[Math.Min(i,list.Count-1)]); int loc=UniformLocation(p,$"u_palette{i}"); if(loc>=0) NativeGl.Uniform3f(loc,c.R/255f,c.G/255f,c.B/255f); }
     }
 
     private static Color ParseColor(string s)
@@ -486,7 +538,30 @@ internal sealed class GlPreviewControl : Control
         try { return ColorTranslator.FromHtml(s); } catch { return Color.White; }
     }
 
-    private static void U1(uint p,string n,float v){int l=NativeGl.GetUniformLocation(p,n);if(l>=0)NativeGl.Uniform1f(l,v);} 
-    private static void Ui(uint p,string n,int v){int l=NativeGl.GetUniformLocation(p,n);if(l>=0)NativeGl.Uniform1i(l,v);} 
-    private static void U2(uint p,string n,float a,float b){int l=NativeGl.GetUniformLocation(p,n);if(l>=0)NativeGl.Uniform2f(l,a,b);} 
+    private static int UniformLocation(uint program, string name)
+    {
+        var key = (program, name);
+        if (UniformLocationCache.TryGetValue(key, out int location)) return location;
+        location = NativeGl.GetUniformLocation(program, name);
+        UniformLocationCache[key] = location;
+        return location;
+    }
+
+    private static void U1(uint program, string name, float value)
+    {
+        int location = UniformLocation(program, name);
+        if (location >= 0) NativeGl.Uniform1f(location, value);
+    }
+
+    private static void Ui(uint program, string name, int value)
+    {
+        int location = UniformLocation(program, name);
+        if (location >= 0) NativeGl.Uniform1i(location, value);
+    }
+
+    private static void U2(uint program, string name, float a, float b)
+    {
+        int location = UniformLocation(program, name);
+        if (location >= 0) NativeGl.Uniform2f(location, a, b);
+    }
 }

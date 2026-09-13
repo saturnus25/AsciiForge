@@ -26,7 +26,7 @@ uniform float u_caustic_scale, u_caustic_distortion, u_caustic_speed, u_caustic_
 uniform float u_aurora_bands, u_aurora_width, u_aurora_flow, u_aurora_curl, u_aurora_shimmer, u_aurora_height;
 uniform float u_shape3d_type, u_shape3d_spin_x, u_shape3d_spin_y, u_shape3d_spin_z, u_shape3d_camera, u_shape3d_fov, u_shape3d_light, u_shape3d_mode;
 uniform float u_terrain_height, u_terrain_detail, u_terrain_speed, u_terrain_camera, u_terrain_water, u_terrain_grid;
-uniform float u_sdf_shape, u_sdf_repeat, u_sdf_twist, u_sdf_smooth, u_sdf_spin, u_sdf_depth;
+uniform float u_sdf_shape, u_sdf_repeat, u_sdf_spacing, u_sdf_twist, u_sdf_smooth, u_sdf_spin, u_sdf_yaw, u_sdf_pitch, u_sdf_depth;
 uniform float u_flow_particles, u_flow_scale, u_flow_strength, u_flow_trails, u_flow_curl, u_flow_speed;
 uniform float u_lightning_branches, u_lightning_width, u_lightning_jitter, u_lightning_forks, u_lightning_flash, u_lightning_speed;
 uniform float u_blackhole_size, u_blackhole_disk, u_blackhole_spin, u_blackhole_lens, u_blackhole_jets, u_blackhole_stars;
@@ -35,6 +35,7 @@ uniform float u_voronoi_cells, u_voronoi_speed, u_voronoi_edges, u_voronoi_fill,
 uniform float u_snow_amount, u_snow_size, u_snow_wind, u_snow_depth, u_snow_gust, u_snow_twinkle;
 uniform float u_dna_turns, u_dna_radius, u_dna_speed, u_dna_rungs, u_dna_tilt, u_dna_depth;
 uniform float u_warpgrid_density, u_warpgrid_depth, u_warpgrid_twist, u_warpgrid_wave, u_warpgrid_speed, u_warpgrid_horizon;
+uniform float u_warpgrid_terrain_height, u_warpgrid_terrain_scale, u_warpgrid_terrain_smooth, u_warpgrid_terrain_valleys, u_warpgrid_terrain_detail;
 uniform int u_shape_mode;
 
 float sat(float x) { return clamp(x, 0.0, 1.0); }
@@ -150,6 +151,37 @@ float periodicLine(float coord, float width) {
     return 1.0-smoothstep(width,width+aa,d);
 }
 
+float staticFbm(vec2 p) {
+    float sum = 0.0;
+    float weight = 0.5;
+    float norm = 0.0;
+    for (int i = 0; i < 5; ++i) {
+        sum += vnoise(p) * weight;
+        norm += weight;
+        p = p * 2.03 + vec2(17.13, 9.71);
+        weight *= 0.5;
+    }
+    return sum / max(norm, 0.001);
+}
+
+float warpGridTerrain(vec2 world) {
+    float scale = max(0.05, u_warpgrid_terrain_scale);
+    vec2 q = world * (0.12 * scale);
+
+    // Broad, smooth shapes build the hills. Fractal noise adds mountain detail.
+    float broad = 0.50 * sin(q.x * 1.35) + 0.32 * cos(q.y * 1.05) + 0.18 * sin((q.x + q.y) * 0.72);
+    float rugged = staticFbm(q * 1.35) * 2.0 - 1.0;
+    float smoothness = clamp(u_warpgrid_terrain_smooth, 0.0, 1.0);
+    float terrain = mix(rugged, broad, smoothness);
+
+    float detail = (staticFbm(q * 4.2 + vec2(4.7, 11.3)) * 2.0 - 1.0) * 0.34 * max(0.0, u_warpgrid_terrain_detail);
+    terrain += detail * (1.0 - 0.45 * smoothness);
+
+    // Valleys only deepen negative areas, so peak height remains easy to control.
+    terrain -= max(0.0, -terrain) * max(0.0, u_warpgrid_terrain_valleys) * 0.65;
+    return terrain;
+}
+
 int caSeedState(int x, int block) {
     float density=clamp(u_ca_seed_density,0.0,1.0);
     if(density<=.001) return x==(u_grid.x/2) ? 1 : 0;
@@ -220,12 +252,58 @@ float terrainView(vec2 p){
  for(int i=1;i<72;i++){float z=float(i)/14.0+.12;float x=p.x*z*1.35;float h=terrainHeightF(vec2(x,z+u_time*u_terrain_speed*.35));float sy=hy+(h/z)*1.65+.42/z-.25;float line=1.0-smoothstep(.012,.035,abs(p.y-sy));if(sy>prev){best=max(best,line);prev=max(prev,sy);} if(h<u_terrain_water){float water=1.0-smoothstep(.012,.03,abs(p.y-(hy+(u_terrain_water/z)*1.65+.42/z-.25)));best=max(best,water*.35);} }
  float grid=.0;if(u_terrain_grid>.001){grid=periodicLine((p.x*12.0)/(max(.15,p.y+1.25)),.035)*u_terrain_grid*.18;}return sat(max(best,grid));
 }
-float sdfLabScene(vec3 p){
- float rep=max(.0,u_sdf_repeat);if(rep>.05){float cell=2.4/max(.25,rep);p.xz=mod(p.xz+cell*.5,cell)-cell*.5;}
- float a=u_temporal_time*u_sdf_spin; p=rotY(a)*p; float tw=p.y*u_sdf_twist*.35;p.xz=mat2(cos(tw),-sin(tw),sin(tw),cos(tw))*p.xz;
- int typ=int(clamp(round(u_sdf_shape),0.0,4.0)); if(typ==0){float d1=sdSphere3(p-vec3(.42*sin(a),.25*cos(a*.8),0),.48);float d2=sdSphere3(p+vec3(.38*cos(a*.7),.28*sin(a),.15),.44);float k=max(.02,u_sdf_smooth);float h=clamp(.5+.5*(d2-d1)/k,0.0,1.0);return mix(d2,d1,h)-k*h*(1.0-h);} if(typ==1)return sdBox3(p,vec3(.5));if(typ==2)return sdTorus3(p,vec2(.62,.2));if(typ==3)return sdCapsule3(p,.65,.25);return min(sdBox3(p,vec3(.45)),sdSphere3(p-vec3(.35,.25,.25),.48));
+float sdfLabPrimitive(vec3 p){
+ float a=u_temporal_time*u_sdf_spin;
+ p=rotY(a)*p;
+ float tw=p.y*u_sdf_twist*.35;
+ p.xz=mat2(cos(tw),-sin(tw),sin(tw),cos(tw))*p.xz;
+ int typ=int(clamp(round(u_sdf_shape),0.0,4.0));
+ if(typ==0){
+  float d1=sdSphere3(p-vec3(.42*sin(a),.25*cos(a*.8),0),.48);
+  float d2=sdSphere3(p+vec3(.38*cos(a*.7),.28*sin(a),.15),.44);
+  float k=max(.02,u_sdf_smooth);float h=clamp(.5+.5*(d2-d1)/k,0.0,1.0);
+  return mix(d2,d1,h)-k*h*(1.0-h);
+ }
+ if(typ==1)return sdBox3(p,vec3(.5));
+ if(typ==2)return sdTorus3(p,vec2(.62,.2));
+ if(typ==3)return sdCapsule3(p,.65,.25);
+ return min(sdBox3(p,vec3(.45)),sdSphere3(p-vec3(.35,.25,.25),.48));
 }
-float renderSdfLab(vec2 p){vec3 ro=vec3(0,0,max(1.5,u_sdf_depth)),rd=normalize(vec3(p,-2.0));float t=0.;for(int i=0;i<88;i++){vec3 q=ro+rd*t;float d=sdfLabScene(q);if(d<.004){float e=.005;vec3 n=normalize(vec3(sdfLabScene(q+vec3(e,0,0))-d,sdfLabScene(q+vec3(0,e,0))-d,sdfLabScene(q+vec3(0,0,e))-d));return .2+.8*max(0.,dot(n,normalize(vec3(-.4,.8,.6))));}t+=max(.003,d*.7);if(t>12.)break;}return 0.;}
+float sdfLabScene(vec3 p){
+ // Finite repetition: unlike an infinite mod(), this leaves an outside from which
+ // the camera can view the lattice instead of occasionally spawning inside a copy.
+ float copies=clamp(round(u_sdf_repeat),0.0,4.0);
+ if(copies>.5){
+  float spacing=max(1.15,u_sdf_spacing);
+  vec2 cell=clamp(round(p.xz/spacing),vec2(-copies),vec2(copies));
+  p.xz-=cell*spacing;
+ }
+ return sdfLabPrimitive(p);
+}
+float renderSdfLab(vec2 p){
+ float yaw=radians(u_sdf_yaw),pitch=radians(clamp(u_sdf_pitch,-75.0,75.0));
+ float copies=clamp(round(u_sdf_repeat),0.0,4.0);
+ float safeOutside=copies*max(1.15,u_sdf_spacing)+1.15;
+ float dist=max(max(1.8,u_sdf_depth),safeOutside);
+ vec3 ro=vec3(sin(yaw)*cos(pitch),sin(pitch),cos(yaw)*cos(pitch))*dist;
+ vec3 target=vec3(0.0);
+ vec3 forward=normalize(target-ro);
+ vec3 right=normalize(cross(forward,vec3(0,1,0)));
+ vec3 up=normalize(cross(right,forward));
+ vec3 rd=normalize(forward*2.0+right*p.x+up*p.y);
+ float t=0.;
+ for(int i=0;i<112;i++){
+  vec3 q=ro+rd*t;float d=sdfLabScene(q);
+  if(d<.004){
+   float e=.005;vec3 n=normalize(vec3(sdfLabScene(q+vec3(e,0,0))-d,sdfLabScene(q+vec3(0,e,0))-d,sdfLabScene(q+vec3(0,0,e))-d));
+   float diff=max(0.,dot(n,normalize(vec3(-.4,.8,.6))));
+   float rim=pow(1.0-max(0.0,dot(n,-rd)),1.7);
+   return sat(.16+.72*diff+.22*rim);
+  }
+  t+=max(.003,d*.72);if(t>18.)break;
+ }
+ return 0.;
+}
 float lightningField(vec2 p){
  float phase=floor(u_temporal_time*max(.05,u_lightning_speed));float seed=phase*17.31+float(u_seed);float y=(p.y+1.0)*.5;float path=(hash11(seed)-.5)*.25;float amp=.10*u_lightning_jitter;path+=sin(y*7.0+seed)*amp+sin(y*17.0+seed*1.7)*amp*.45+sin(y*39.0+seed*.7)*amp*.18;float d=abs(p.x-path);float w=max(.003,u_lightning_width);float main=1.0-smoothstep(w,w*2.6,d);float forks=0.;int br=int(clamp(round(u_lightning_branches),1.,12.));for(int i=0;i<12;i++){if(i>=br)break;float fi=float(i);float start=hash11(seed+fi*5.1)*.8+.08;float side=hash11(seed+fi*9.7)>.5?1.:-1.;float yy=y-start;if(yy>0.&&yy<.28){float bx=path+side*yy*(.45+.55*hash11(fi+seed))*u_lightning_forks;float bd=abs(p.x-bx);forks=max(forks,(1.-smoothstep(w*.7,w*2.2,bd))*(1.-yy/.28));}}float flash=exp(-d*7.)*.18*u_lightning_flash;return sat(max(main,forks)+flash);}
 float voronoiField(vec2 p){vec2 q=p*(2.2+u_voronoi_cells*.18);vec2 g=floor(q),f=fract(q);float d1=9.,d2=9.;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){vec2 o=vec2(x,y);vec2 r=vec2(hash21(g+o),hash21(g+o+17.3));r=.5+.38*sin(u_temporal_time*u_voronoi_speed+6.2831*r);float d=length(o+r-f);if(d<d1){d2=d1;d1=d;}else d2=min(d2,d);}float edge=sat((d2-d1)*7.*u_voronoi_edges);float fill=(.5+.5*cos(d1*8.+u_temporal_time*u_voronoi_pulse))*u_voronoi_fill;return sat(max(1.-edge,fill*.55));}
@@ -481,7 +559,43 @@ float effectIntensity(vec2 cell) {
     } else if(u_effect==41) {
         float y=p.y+sin(p.x*.8)*u_dna_tilt*.1;float phase=y*u_dna_turns*3.14159-u_temporal_time*u_dna_speed;float z1=cos(phase),z2=-z1;float x1=sin(phase)*u_dna_radius,x2=-x1;float depth1=.55+.45*(z1*u_dna_depth*.5+.5),depth2=.55+.45*(z2*u_dna_depth*.5+.5);float d1=abs(p.x-x1),d2=abs(p.x-x2);float strand=max(exp(-d1*75.)*depth1,exp(-d2*75.)*depth2);float rungPhase=fract((y+1.)*u_dna_rungs*.5);float rungGate=1.-smoothstep(.08,.18,min(rungPhase,1.-rungPhase));float lo=min(x1,x2),hi=max(x1,x2);float rung=step(lo,p.x)*step(p.x,hi)*rungGate*.55;v=sat(max(strand,rung));
     } else if(u_effect==42) {
-        float h=clamp(u_warpgrid_horizon,-.6,.6),gy=p.y-h;if(gy<=.015){v=.0;}else{float dep=max(.1,u_warpgrid_depth)/gy;float twist=sin(dep*.18+u_temporal_time*.3)*u_warpgrid_twist*.08;float wx=(p.x+twist)*dep;float wz=dep+u_temporal_time*u_warpgrid_speed;float wave=sin(wx*.45+wz*.18)*u_warpgrid_wave*.15;float den=max(2.,u_warpgrid_density);float gx=periodicLine(wx*den*.06,.045),gz=periodicLine((wz+wave)*den*.045,.04);v=max(gx,gz)*smoothstep(.02,.14,gy);}
+        float horizon = clamp(u_warpgrid_horizon, -0.6, 0.6);
+        float screenY = p.y - horizon;
+        if (screenY <= 0.015) {
+            v = 0.0;
+        } else {
+            float depthScale = max(0.1, u_warpgrid_depth);
+            float depth = depthScale / screenY;
+            float wx = 0.0;
+            float wz = 0.0;
+            float terrain = 0.0;
+
+            // Two cheap inverse-projection refinements are enough to make the
+            // perspective grid follow the height field instead of staying flat.
+            for (int iteration = 0; iteration < 2; ++iteration) {
+                float twist = sin(depth * 0.18 + u_temporal_time * 0.3) * u_warpgrid_twist * 0.08;
+                wx = (p.x + twist) * depth;
+                wz = depth + u_temporal_time * u_warpgrid_speed;
+                terrain = warpGridTerrain(vec2(wx, wz)) * max(0.0, u_warpgrid_terrain_height);
+                float perspectiveFalloff = 1.0 / (1.0 + depth * 0.06);
+                float displacedY = max(0.015, screenY + terrain * 0.11 * perspectiveFalloff);
+                depth = depthScale / displacedY;
+            }
+
+            float twist = sin(depth * 0.18 + u_temporal_time * 0.3) * u_warpgrid_twist * 0.08;
+            wx = (p.x + twist) * depth;
+            wz = depth + u_temporal_time * u_warpgrid_speed;
+            terrain = warpGridTerrain(vec2(wx, wz)) * max(0.0, u_warpgrid_terrain_height);
+
+            float wave = sin(wx * 0.45 + wz * 0.18) * u_warpgrid_wave * 0.15;
+            float density = max(2.0, u_warpgrid_density);
+            float gx = periodicLine(wx * density * 0.06, 0.045);
+            float gz = periodicLine((wz + wave) * density * 0.045, 0.040);
+
+            // Slight height shading makes hills readable even where grid lines are sparse.
+            float heightShade = clamp(0.07 + terrain * 0.035, 0.0, 0.16) * step(0.001, u_warpgrid_terrain_height);
+            v = max(max(gx, gz), heightShade) * smoothstep(0.02, 0.14, screenY);
+        }
     }
     return sat(v);
 }

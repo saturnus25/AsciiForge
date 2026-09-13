@@ -43,6 +43,7 @@ internal sealed class EffectSettings
     public string PaletteName { get; set; } = "Plasma";
     public List<string> PaletteStops { get; set; } = new() { "#090122", "#3d0f7d", "#9c179e", "#e84a8a", "#ffad5a", "#fff0b6" };
     public bool ColorEnabled { get; set; } = true;
+    public bool IncludeExportCredit { get; set; } = true;
     public bool Invert { get; set; }
     public string ShapeMode { get; set; } = "Square";
 
@@ -67,7 +68,7 @@ internal sealed class EffectSettings
             Width = Width, Height = Height, Fps = Fps, Duration = Duration, Seed = Seed,
             Effect = Effect, Preset = Preset, CharsetName = CharsetName, Charset = Charset,
             PaletteName = PaletteName, PaletteStops = new List<string>(PaletteStops),
-            ColorEnabled = ColorEnabled, Invert = Invert, ShapeMode = ShapeMode
+            ColorEnabled = ColorEnabled, IncludeExportCredit = IncludeExportCredit, Invert = Invert, ShapeMode = ShapeMode
         };
         x.V.Clear();
         foreach (var kv in V) x.V[kv.Key] = kv.Value;
@@ -225,11 +226,14 @@ internal static class ParameterCatalog
             new("Rejilla", "terrain_grid", 0, 2, .45, 2, "Añade líneas que remarcan la forma del terreno.")],
         ["SDF Lab"] = [
             new("Forma (0-4)", "sdf_shape", 0, 4, 0, 0, "0 blobs, 1 cajas, 2 toros, 3 cápsulas, 4 mezcla."),
-            new("Repetición", "sdf_repeat", 0, 4, 1, 2, "Repite la escena varias veces en el espacio."),
-            new("Twist", "sdf_twist", -4, 4, 1, 2, "Retuerce las figuras mientras giran."),
-            new("Fusión", "sdf_smooth", 0, 1, .35, 2, "Hace que las figuras se fundan entre ellas."),
-            new("Giro", "sdf_spin", -3, 3, .7, 2, "Hace rotar la escena completa."),
-            new("Profundidad", "sdf_depth", 1, 8, 4.5, 2, "Acerca o aleja la escena 3D.")],
+            new("Repeticiones", "sdf_repeat", 0, 4, 1, 0, "Añade copias alrededor de la figura principal sin encerrar la cámara dentro de ellas."),
+            new("Separación", "sdf_spacing", 1.15, 4.5, 2.15, 2, "Separa o acerca las copias entre sí."),
+            new("Twist", "sdf_twist", -4, 4, 1, 2, "Retuerce cada figura sobre sí misma."),
+            new("Fusión", "sdf_smooth", 0, 1, .35, 2, "Hace que las partes de una figura se fundan entre ellas."),
+            new("Giro figura", "sdf_spin", -3, 3, .7, 2, "Hace girar las figuras dentro de la escena."),
+            new("Cámara horizontal", "sdf_yaw", -180, 180, 0, 1, "Rodea la escena hacia la izquierda o derecha. También puedes arrastrar la preview."),
+            new("Cámara vertical", "sdf_pitch", -75, 75, -8, 1, "Mira la escena desde más arriba o más abajo. También puedes arrastrar la preview."),
+            new("Profundidad", "sdf_depth", 1.8, 24, 5.2, 2, "Acerca o aleja la cámara. Con repeticiones, la cámara nunca entra dentro del conjunto. También puedes usar la rueda sobre la preview.")],
         ["Flow Field"] = [
             new("Trazas", "flow_particles", 4, 80, 28, 0, "Añade o quita líneas que siguen el flujo."),
             new("Escala flujo", "flow_scale", .2, 6, 1.5, 2, "Hace los remolinos más grandes o pequeños."),
@@ -283,9 +287,14 @@ internal static class ParameterCatalog
             new("Densidad", "warpgrid_density", 2, 24, 10, 0, "Junta o separa las líneas de la rejilla."),
             new("Profundidad", "warpgrid_depth", .2, 4, 1, 2, "Hace la perspectiva más plana o profunda."),
             new("Twist", "warpgrid_twist", -3, 3, .6, 2, "Retuerce la rejilla alrededor del centro."),
-            new("Onda", "warpgrid_wave", 0, 3, .7, 2, "Hace que el suelo suba y baje como una tela."),
+            new("Onda", "warpgrid_wave", 0, 3, .7, 2, "Añade ondulación continua al suelo, como una tela o una superficie flexible."),
             new("Velocidad", "warpgrid_speed", -4, 4, .8, 2, "Hace avanzar o retroceder la rejilla."),
-            new("Horizonte", "warpgrid_horizon", -.6, .6, 0, 2, "Sube o baja el punto donde desaparece la rejilla.")],
+            new("Horizonte", "warpgrid_horizon", -.6, .6, 0, 2, "Sube o baja el punto donde desaparece la rejilla."),
+            new("Altura terreno", "warpgrid_terrain_height", 0, 3, 0, 2, "Levanta y hunde los vértices para formar colinas, montañas y valles."),
+            new("Escala terreno", "warpgrid_terrain_scale", .12, 4, .65, 2, "Cambia el tamaño de las montañas y colinas. Bajo crea formas grandes; alto crea terreno más apretado."),
+            new("Suavidad terreno", "warpgrid_terrain_smooth", 0, 1, .65, 2, "Hace el terreno más redondeado y suave o más abrupto y rocoso."),
+            new("Valles", "warpgrid_terrain_valleys", 0, 2.5, .35, 2, "Profundiza las zonas bajas sin hacer más altas las montañas."),
+            new("Detalle terreno", "warpgrid_terrain_detail", 0, 2.5, .55, 2, "Añade pequeñas irregularidades sobre las formas grandes del terreno.")],
     };
 
     public static readonly Dictionary<string, double> Defaults = BuildDefaults();

@@ -3688,35 +3688,47 @@
       "sdf_twist": 0.5,
       "sdf_smooth": 0.55,
       "sdf_spin": 0.7,
-      "sdf_depth": 4.3,
-      "palette": "Plasma"
+      "sdf_depth": 5.0,
+      "palette": "Plasma",
+      "sdf_spacing": 2.2,
+      "sdf_yaw": -18,
+      "sdf_pitch": -8
     },
     "Infinite Cubes": {
       "sdf_shape": 1,
-      "sdf_repeat": 2.2,
+      "sdf_repeat": 3,
       "sdf_twist": 0.4,
       "sdf_smooth": 0.1,
       "sdf_spin": 0.55,
-      "sdf_depth": 4.5,
-      "palette": "Cyberpunk"
+      "sdf_depth": 7.2,
+      "palette": "Cyberpunk",
+      "sdf_spacing": 1.75,
+      "sdf_yaw": 28,
+      "sdf_pitch": -14
     },
     "Torus Lattice": {
       "sdf_shape": 2,
-      "sdf_repeat": 1.5,
+      "sdf_repeat": 2,
       "sdf_twist": 1.2,
       "sdf_smooth": 0.15,
       "sdf_spin": 0.8,
-      "sdf_depth": 4.5,
-      "palette": "Vaporwave"
+      "sdf_depth": 6.8,
+      "palette": "Vaporwave",
+      "sdf_spacing": 2.0,
+      "sdf_yaw": -32,
+      "sdf_pitch": -18
     },
     "Twisted Capsules": {
       "sdf_shape": 3,
-      "sdf_repeat": 1.2,
+      "sdf_repeat": 2,
       "sdf_twist": 2.4,
       "sdf_smooth": 0.25,
       "sdf_spin": 0.65,
-      "sdf_depth": 4.2,
-      "palette": "Aurora"
+      "sdf_depth": 6.4,
+      "palette": "Aurora",
+      "sdf_spacing": 1.9,
+      "sdf_yaw": 36,
+      "sdf_pitch": -10
     },
     "CSG Relic": {
       "sdf_shape": 4,
@@ -3724,26 +3736,35 @@
       "sdf_twist": 0.8,
       "sdf_smooth": 0.2,
       "sdf_spin": 0.45,
-      "sdf_depth": 4.0,
-      "palette": "Terminal Amber"
+      "sdf_depth": 5.2,
+      "palette": "Terminal Amber",
+      "sdf_spacing": 2.2,
+      "sdf_yaw": -24,
+      "sdf_pitch": -12
     },
     "Machine Room": {
       "sdf_shape": 1,
-      "sdf_repeat": 3.2,
+      "sdf_repeat": 4,
       "sdf_twist": 0,
       "sdf_smooth": 0,
       "sdf_spin": 0.2,
-      "sdf_depth": 5.1,
-      "palette": "DOS Blue"
+      "sdf_depth": 8.5,
+      "palette": "DOS Blue",
+      "sdf_spacing": 1.7,
+      "sdf_yaw": 42,
+      "sdf_pitch": -16
     },
     "Soft Organism": {
       "sdf_shape": 0,
-      "sdf_repeat": 0.6,
+      "sdf_repeat": 1,
       "sdf_twist": 1.6,
       "sdf_smooth": 0.85,
       "sdf_spin": 0.4,
-      "sdf_depth": 3.8,
-      "palette": "Inferno"
+      "sdf_depth": 5.8,
+      "palette": "Inferno",
+      "sdf_spacing": 2.1,
+      "sdf_yaw": -28,
+      "sdf_pitch": -8
     }
   },
   "Flow Field": {
@@ -4166,6 +4187,90 @@
       "warpgrid_speed": 0.2,
       "warpgrid_horizon": -0.12,
       "palette": "Heatmap"
+    },
+    "Mountain Range": {
+      "warpgrid_density": 12,
+      "warpgrid_depth": 1.15,
+      "warpgrid_twist": 0.15,
+      "warpgrid_wave": 0.12,
+      "warpgrid_speed": 0.28,
+      "warpgrid_horizon": -0.03,
+      "warpgrid_terrain_height": 2.1,
+      "warpgrid_terrain_scale": 0.52,
+      "warpgrid_terrain_smooth": 0.34,
+      "warpgrid_terrain_valleys": 0.65,
+      "warpgrid_terrain_detail": 1.25,
+      "palette": "Heatmap"
+    },
+    "Rolling Hills": {
+      "warpgrid_density": 14,
+      "warpgrid_depth": 1.0,
+      "warpgrid_twist": 0.08,
+      "warpgrid_wave": 0.08,
+      "warpgrid_speed": 0.45,
+      "warpgrid_horizon": 0.04,
+      "warpgrid_terrain_height": 0.95,
+      "warpgrid_terrain_scale": 0.28,
+      "warpgrid_terrain_smooth": 0.92,
+      "warpgrid_terrain_valleys": 0.15,
+      "warpgrid_terrain_detail": 0.15,
+      "palette": "Matrix Green"
+    },
+    "Deep Valleys": {
+      "warpgrid_density": 11,
+      "warpgrid_depth": 1.35,
+      "warpgrid_twist": 0.25,
+      "warpgrid_wave": 0.18,
+      "warpgrid_speed": 0.22,
+      "warpgrid_horizon": -0.06,
+      "warpgrid_terrain_height": 1.6,
+      "warpgrid_terrain_scale": 0.48,
+      "warpgrid_terrain_smooth": 0.58,
+      "warpgrid_terrain_valleys": 2.1,
+      "warpgrid_terrain_detail": 0.7,
+      "palette": "Purple Nebula"
+    },
+    "Rugged Peaks": {
+      "warpgrid_density": 15,
+      "warpgrid_depth": 1.25,
+      "warpgrid_twist": 0.18,
+      "warpgrid_wave": 0.1,
+      "warpgrid_speed": 0.18,
+      "warpgrid_horizon": -0.08,
+      "warpgrid_terrain_height": 2.65,
+      "warpgrid_terrain_scale": 0.92,
+      "warpgrid_terrain_smooth": 0.08,
+      "warpgrid_terrain_valleys": 0.8,
+      "warpgrid_terrain_detail": 1.9,
+      "palette": "Monochrome"
+    },
+    "Soft Dunes": {
+      "warpgrid_density": 13,
+      "warpgrid_depth": 1.0,
+      "warpgrid_twist": 0.0,
+      "warpgrid_wave": 0.05,
+      "warpgrid_speed": 0.38,
+      "warpgrid_horizon": 0.06,
+      "warpgrid_terrain_height": 0.72,
+      "warpgrid_terrain_scale": 0.22,
+      "warpgrid_terrain_smooth": 1.0,
+      "warpgrid_terrain_valleys": 0.05,
+      "warpgrid_terrain_detail": 0.0,
+      "palette": "Sunset"
+    },
+    "Alien Highlands": {
+      "warpgrid_density": 10,
+      "warpgrid_depth": 1.5,
+      "warpgrid_twist": 0.75,
+      "warpgrid_wave": 0.32,
+      "warpgrid_speed": 0.3,
+      "warpgrid_horizon": -0.1,
+      "warpgrid_terrain_height": 1.85,
+      "warpgrid_terrain_scale": 0.7,
+      "warpgrid_terrain_smooth": 0.28,
+      "warpgrid_terrain_valleys": 1.15,
+      "warpgrid_terrain_detail": 1.4,
+      "palette": "Cyberpunk"
     }
   }
 }
