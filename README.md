@@ -17,6 +17,12 @@ AsciiForge is a GPU-accelerated ASCII animation editor and procedural visual pla
 - Static PowerShell import: recognized frame data is parsed without executing arbitrary scripts
 - No third-party NuGet packages
 
+## AI-assisted development
+
+AsciiForge was developed with the help of AI tools across different parts of the process, including code generation and review, debugging, effect design, and documentation.
+
+This project is not simply AI-generated code published without review: its features, effects, behavior, and design decisions have been manually tested, adjusted, and directed throughout development.
+
 ## Build
 
 Install **.NET desktop development** and the .NET 10 SDK from Visual Studio Installer, then open `AsciiForge.sln` and build `Release`, or run:
@@ -61,6 +67,12 @@ AsciiForge es un editor de animaciones ASCII y laboratorio visual procedural ace
 - Exportación a PowerShell, HTML seleccionable, JSON, C# standalone, ANSI y TXT
 - Importación estática de PowerShell sin ejecutar scripts arbitrarios
 - Sin paquetes NuGet de terceros
+
+## Desarrollo asistido por IA
+
+AsciiForge ha sido desarrollado con apoyo de herramientas de inteligencia artificial en distintas partes del proceso, incluyendo generación y revisión de código, depuración, diseño de efectos y documentación.
+
+El proyecto no es simplemente código generado y publicado sin revisar: las funciones, efectos, comportamiento y decisiones de diseño han sido probados, ajustados y dirigidos manualmente durante el desarrollo.
 
 ## Compilar
 
