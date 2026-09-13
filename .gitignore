@@ -1,0 +1,14 @@
+.vs/
+.vscode/
+.idea/
+**/bin/
+**/obj/
+publish/
+dist/
+*.user
+*.suo
+*.pdb
+*.cache
+*.log
+.DS_Store
+Thumbs.db
