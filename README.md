@@ -1,4 +1,5 @@
 <img width="1917" height="1025" alt="image" src="https://github.com/user-attachments/assets/febc7df3-bc87-4c84-85c7-c68710979555" />
+
 # AsciiForge 5.2.0 — C# GPU Edition
 
 **English** | [Español](#español)
